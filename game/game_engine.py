@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pygame
 from .player import Player
 from .platform import Platform
@@ -49,6 +51,37 @@ class GameEngine:
         self.game_over = False
         self.menu_active = False
         self.exit_requested = False
+        self.sounds = self._load_sounds()
+
+    def _load_sounds(self):
+        sound_dir = Path(__file__).resolve().parent.parent / "assets" / "sounds"
+        sound_files = {
+            "jump": "jump.wav",
+            "goal": "goal.wav",
+            "death": "death.wav",
+        }
+        try:
+            if pygame.mixer.get_init() is None:
+                pygame.mixer.init()
+            return {
+                name: pygame.mixer.Sound(str(sound_dir / filename))
+                for name, filename in sound_files.items()
+            }
+        except (pygame.error, OSError):
+            return {}
+
+    def _play_sound(self, sound_name):
+        sound = self.sounds.get(sound_name)
+        if sound is not None:
+            try:
+                sound.play()
+            except pygame.error:
+                pass
+
+    def _end_game(self):
+        if not self.game_over:
+            self.game_over = True
+            self._play_sound("death")
 
     def handle_event(self, event):
         if event.type != pygame.KEYDOWN:
@@ -76,7 +109,9 @@ class GameEngine:
             return
 
         if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
-            self.player.jump()
+            if self.player.on_ground:
+                self.player.jump()
+                self._play_sound("jump")
 
     def _choose_menu_option(self, option_index):
         self.selected_option = option_index
@@ -137,15 +172,16 @@ class GameEngine:
 
         for hazard in self.hazards:
             if self.player.rect().colliderect(hazard.rect()):
-                self.game_over = True
+                self._end_game()
                 return
 
         if self.player.y > self.height:
-            self.game_over = True
+            self._end_game()
             return
 
         if self.player.x >= self.goal_x:
             self.score += 1
+            self._play_sound("goal")
             self.player.x, self.player.y = self.start_x, self.start_y
             self.player.vy = 0
 
