@@ -34,13 +34,28 @@ class GameEngine:
 
         self.score = 0
         self.font = pygame.font.SysFont("Arial", 30)
+        self.game_over_font = pygame.font.SysFont("Arial", 48, bold=True)
+        self.game_over_text_font = pygame.font.SysFont("Arial", 24)
         self.game_over = False
+        self.replay_requested = False
+        self.exit_requested = False
 
     def handle_event(self, event):
+        if self.game_over:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    self.replay_requested = True
+                elif event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    self.exit_requested = True
+            return
+
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
             self.player.jump()
 
     def handle_input(self):
+        if self.game_over:
+            return
+
         keys = pygame.key.get_pressed()
         self.player.vx = 0
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
@@ -106,7 +121,27 @@ class GameEngine:
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         screen.blit(score_text, (10, 10))
 
-        if self.game_over and not getattr(self, "_game_over_logged", False):
-            # NOTE: no proper game-over screen yet - see Task 2 in the README.
-            print("Game over! Final score:", self.score)
-            self._game_over_logged = True
+        if self.game_over:
+            overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            screen.blit(overlay, (0, 0))
+
+            title = self.game_over_font.render("GAME OVER", True, WHITE)
+            final_score = self.game_over_text_font.render(
+                f"Final Score: {self.score}", True, WHITE
+            )
+            replay_hint = self.game_over_text_font.render(
+                "Press R to continue to replay / difficulty selection",
+                True,
+                WHITE,
+            )
+            exit_hint = self.game_over_text_font.render(
+                "Press Esc or Q to exit", True, WHITE
+            )
+
+            center_x = self.width // 2
+            center_y = self.height // 2
+            screen.blit(title, title.get_rect(center=(center_x, center_y - 85)))
+            screen.blit(final_score, final_score.get_rect(center=(center_x, center_y - 25)))
+            screen.blit(replay_hint, replay_hint.get_rect(center=(center_x, center_y + 30)))
+            screen.blit(exit_hint, exit_hint.get_rect(center=(center_x, center_y + 70)))
