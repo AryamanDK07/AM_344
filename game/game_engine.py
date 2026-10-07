@@ -36,24 +36,66 @@ class GameEngine:
         self.font = pygame.font.SysFont("Arial", 30)
         self.game_over_font = pygame.font.SysFont("Arial", 48, bold=True)
         self.game_over_text_font = pygame.font.SysFont("Arial", 24)
+        self.menu_font = pygame.font.SysFont("Arial", 30)
+        self.menu_help_font = pygame.font.SysFont("Arial", 20)
+        self.difficulties = {
+            "Easy": (0.4, -13),
+            "Medium": (0.6, -12),
+            "Hard": (0.8, -11),
+        }
+        self.menu_options = ["Easy", "Medium", "Hard", "Exit"]
+        self.selected_option = 1
+        self.active_difficulty = "Medium"
         self.game_over = False
-        self.replay_requested = False
+        self.menu_active = False
         self.exit_requested = False
 
     def handle_event(self, event):
-        if self.game_over:
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
-                    self.replay_requested = True
-                elif event.key in (pygame.K_ESCAPE, pygame.K_q):
-                    self.exit_requested = True
+        if event.type != pygame.KEYDOWN:
             return
 
-        if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
+        if self.menu_active:
+            if event.key in (pygame.K_UP, pygame.K_w):
+                self.selected_option = (self.selected_option - 1) % len(self.menu_options)
+            elif event.key in (pygame.K_DOWN, pygame.K_s):
+                self.selected_option = (self.selected_option + 1) % len(self.menu_options)
+            elif event.key == pygame.K_RETURN:
+                self._choose_menu_option(self.selected_option)
+            elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                self._choose_menu_option(event.key - pygame.K_1)
+            elif event.key in (pygame.K_ESCAPE, pygame.K_q):
+                self.exit_requested = True
+            return
+
+        if self.game_over:
+            if event.key == pygame.K_r:
+                self.selected_option = 1
+                self.menu_active = True
+            elif event.key in (pygame.K_ESCAPE, pygame.K_q):
+                self.exit_requested = True
+            return
+
+        if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
             self.player.jump()
 
+    def _choose_menu_option(self, option_index):
+        self.selected_option = option_index
+        if option_index == len(self.menu_options) - 1:
+            self.exit_requested = True
+            return
+
+        self.active_difficulty = self.menu_options[option_index]
+        self.gravity, self.player.jump_strength = self.difficulties[self.active_difficulty]
+        self.player.x, self.player.y = self.start_x, self.start_y
+        self.player.vx = 0
+        self.player.vy = 0
+        self.player.on_ground = False
+        self.score = 0
+        self.game_over = False
+        self.menu_active = False
+
     def handle_input(self):
-        if self.game_over:
+        if self.game_over or self.menu_active:
             return
 
         keys = pygame.key.get_pressed()
@@ -64,7 +106,7 @@ class GameEngine:
             self.player.vx = self.player.speed
 
     def update(self):
-        if self.game_over:
+        if self.game_over or self.menu_active:
             return
 
         previous_y = self.player.y
@@ -121,6 +163,35 @@ class GameEngine:
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         screen.blit(score_text, (10, 10))
 
+        if self.menu_active:
+            overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 200))
+            screen.blit(overlay, (0, 0))
+
+            title = self.game_over_font.render("CHOOSE DIFFICULTY", True, WHITE)
+            screen.blit(title, title.get_rect(center=(self.width // 2, 110)))
+            for index, option in enumerate(self.menu_options):
+                marker = ">" if index == self.selected_option else " "
+                color = (255, 220, 80) if index == self.selected_option else WHITE
+                choice = self.menu_font.render(
+                    f"{marker}  {index + 1}. {option}", True, color
+                )
+                screen.blit(
+                    choice,
+                    choice.get_rect(center=(self.width // 2, 190 + index * 48)),
+                )
+
+            instructions = self.menu_help_font.render(
+                "Up/Down: choose   Enter: confirm   1-4: quick select",
+                True,
+                WHITE,
+            )
+            screen.blit(
+                instructions,
+                instructions.get_rect(center=(self.width // 2, self.height - 35)),
+            )
+            return
+
         if self.game_over:
             overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
@@ -131,7 +202,7 @@ class GameEngine:
                 f"Final Score: {self.score}", True, WHITE
             )
             replay_hint = self.game_over_text_font.render(
-                "Press R to continue to replay / difficulty selection",
+                "Press R to open replay / difficulty selection",
                 True,
                 WHITE,
             )
