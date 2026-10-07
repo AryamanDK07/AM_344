@@ -52,24 +52,29 @@ class GameEngine:
         if self.game_over:
             return
 
+        previous_y = self.player.y
         self.player.vy += self.gravity
         self.player.x = max(0, self.player.x + self.player.vx)
-
-        # NOTE: gravity has no terminal-velocity cap, so vertical speed
-        # keeps growing the longer the player falls. Collision is only
-        # checked against the player's rect *after* it has already
-        # moved for the frame - there's no check for whether the
-        # player's path crossed a platform along the way. After a
-        # long enough fall (e.g. off the elevated middle platform),
-        # a single frame's movement can carry the player from just
-        # above a platform to just below it without the two rects
-        # ever overlapping, so the platform is skipped entirely and
-        # the player falls straight through. See Task 1 in the README.
         self.player.y += self.player.vy
         self.player.on_ground = False
-        for platform in self.platforms:
-            if self.player.rect().colliderect(platform.rect()) and self.player.vy >= 0:
-                self.player.y = platform.y - self.player.height
+        if self.player.vy > 0:
+            previous_bottom = previous_y + self.player.height
+            current_bottom = self.player.y + self.player.height
+            landing_platform = None
+            for platform in self.platforms:
+                horizontal_overlap = (
+                    self.player.x < platform.x + platform.width
+                    and self.player.x + self.player.width > platform.x
+                )
+                crossed_platform_top = (
+                    previous_bottom <= platform.y <= current_bottom
+                )
+                if horizontal_overlap and crossed_platform_top:
+                    if landing_platform is None or platform.y < landing_platform.y:
+                        landing_platform = platform
+
+            if landing_platform is not None:
+                self.player.y = landing_platform.y - self.player.height
                 self.player.vy = 0
                 self.player.on_ground = True
 
